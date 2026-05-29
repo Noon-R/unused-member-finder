@@ -20,6 +20,7 @@ if (!File.Exists(slnPath))
 
 bool includePublic = args.Contains("--include-public");
 string? outPath = GetArg(args, "--out");
+string? folder = GetArg(args, "--folder");
 
 using var ws = MSBuildWorkspace.Create();
 ws.RegisterWorkspaceFailedHandler(e =>
@@ -32,6 +33,7 @@ Console.Error.WriteLine("[info] 解析を開始します...");
 var unused = await MemberAnalyzer.AnalyzeAsync(
     solution,
     includePublic,
+    folderFilter: folder,
     log: msg => Console.Error.WriteLine(msg));
 
 Console.Error.WriteLine($"[info] 完了: {unused.Count} 件の未使用候補を検出");
@@ -40,6 +42,7 @@ var output = new
 {
     solution = Path.GetFullPath(slnPath),
     includePublic,
+    folderFilter = folder is null ? null : Path.GetFullPath(folder),
     analyzedAt = DateTime.UtcNow.ToString("o"),
     unusedCount = unused.Count,
     unused = unused.Select(u => new

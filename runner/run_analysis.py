@@ -54,6 +54,8 @@ def main() -> None:
     p.add_argument("--out", type=Path, default=Path("unused_report.json"))
     p.add_argument("--include-public", action="store_true",
                    help="public メンバーも検査対象に含める")
+    p.add_argument("--folder", type=Path, default=None,
+                   help="このフォルダ配下のファイルに宣言されたメンバーのみ検査する")
     p.add_argument("--fail-on-found", action="store_true",
                    help="未使用が1件でもあれば exit 1（CI 用）")
     args = p.parse_args()
@@ -66,9 +68,18 @@ def main() -> None:
         print(f"exe が見つかりません: {args.exe}", file=sys.stderr)
         sys.exit(1)
 
-    extra = ["--include-public"] if args.include_public else []
+    if args.folder is not None and not args.folder.exists():
+        print(f"フォルダが見つかりません: {args.folder}", file=sys.stderr)
+        sys.exit(1)
 
-    print(f"検査開始: {args.solution.name}")
+    extra: list[str] = []
+    if args.include_public:
+        extra += ["--include-public"]
+    if args.folder is not None:
+        extra += ["--folder", str(args.folder)]
+
+    print(f"検査開始: {args.solution.name}"
+          + (f"  (フォルダ絞り込み: {args.folder})" if args.folder else ""))
     result = run_exe(args.exe, args.solution, extra)
 
     if "error" in result:

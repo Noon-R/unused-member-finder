@@ -8,8 +8,18 @@ internal static class MemberAnalyzer
     public static async Task<List<UnusedMember>> AnalyzeAsync(
         Solution solution,
         bool includePublic,
+        string? folderFilter = null,
         Action<string>? log = null)
     {
+        // フォルダフィルタを正規化（末尾セパレータを統一）
+        string? normalizedFolder = folderFilter is null
+            ? null
+            : Path.GetFullPath(folderFilter).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+              + Path.DirectorySeparatorChar;
+
+        if (normalizedFolder is not null)
+            log?.Invoke($"[info] フォルダフィルタ: {normalizedFolder}");
+
         var results = new List<UnusedMember>();
 
         foreach (var project in solution.Projects)
@@ -32,6 +42,10 @@ internal static class MemberAnalyzer
                 foreach (var sym in members)
                 {
                     if (SkipRules.ShouldSkip(sym, includePublic)) continue;
+
+                    // 宣言ファイルがフォルダ内にない場合はスキップ
+                    if (normalizedFolder is not null && !IsDeclaredUnderFolder(sym, normalizedFolder))
+                        continue;
 
                     var refs = await SymbolFinder.FindReferencesAsync(sym, solution);
 
@@ -63,6 +77,17 @@ internal static class MemberAnalyzer
         }
 
         return results;
+    }
+
+    private static bool IsDeclaredUnderFolder(ISymbol sym, string normalizedFolder)
+    {
+        return sym.Locations
+            .Where(l => l.IsInSource && l.SourceTree is not null)
+            .Any(l =>
+            {
+                string filePath = Path.GetFullPath(l.SourceTree!.FilePath);
+                return filePath.StartsWith(normalizedFolder, StringComparison.OrdinalIgnoreCase);
+            });
     }
 
     private static IEnumerable<INamedTypeSymbol> GetAllTypes(INamespaceSymbol ns)
